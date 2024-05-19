@@ -6,7 +6,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@RestController("/todo")
+@RestController
+@RequestMapping("/todo")
 @CrossOrigin(origins = "*")
 public class TodoController {
 

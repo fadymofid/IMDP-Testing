@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import java.util.List;
 
 import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
 public class Test_TODO_service {
@@ -32,6 +33,27 @@ public class Test_TODO_service {
 
         assertFalse(newTodo.isCompleted());
     }
+    @Test
+    public void createTodo_MaximumLengthDescription() {
+        String longDescription = "a".repeat(1024);
+        TodoCreateRequest todoCreateRequest = new TodoCreateRequest("Title", longDescription);
+        Todo newTodo = todoService.create(todoCreateRequest);
+        assertNotNull(newTodo);
+        assertEquals(longDescription, newTodo.getDescription());
+    }
+
+    @Test
+    public void createTodo_MaximumLengthTitle() {
+        String longTitle = "a".repeat(1024);
+        TodoCreateRequest todoCreateRequest = new TodoCreateRequest(longTitle, "Description");
+        Todo newTodo = todoService.create(todoCreateRequest);
+        assertNotNull(newTodo);
+        assertEquals(longTitle, newTodo.getTitle());
+    }
+
+
+
+
     @Test
     public void readTodo() {
 

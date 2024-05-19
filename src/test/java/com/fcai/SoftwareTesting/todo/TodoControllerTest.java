@@ -1,72 +1,125 @@
 package com.fcai.SoftwareTesting.todo;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+@WebMvcTest(TodoController.class)
 public class TodoControllerTest {
 
-    @Mock
-    private TodoService todoService;
 
-    @InjectMocks
-    private TodoController todoController;
 
-    @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
+        @Autowired
+        private MockMvc mockMvc;
+
+        @MockBean
+        private TodoService todoService;
+
+        private ObjectMapper objectMapper;
+
+        @BeforeEach
+        public void setUp() {
+            objectMapper = new ObjectMapper();
+        }
+
+        @Test
+        public void testCreateTodo() throws Exception {
+            TodoCreateRequest request = new TodoCreateRequest("Title", "Description");
+            Todo createdTodo = new Todo("1", "Title", "Description", false);
+
+
+            when(todoService.create(any(TodoCreateRequest.class))).thenReturn(createdTodo);
+
+            String inputJson = objectMapper.writeValueAsString(request);
+            MvcResult mvcResult = mockMvc.perform(post("/todo/create")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(inputJson))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            String responseJson = mvcResult.getResponse().getContentAsString();
+            Todo responseTodo = objectMapper.readValue(responseJson, Todo.class);
+            assertEquals(createdTodo.getId(), responseTodo.getId());
+            assertEquals(createdTodo.getTitle(), responseTodo.getTitle());
+            assertEquals(createdTodo.getDescription(), responseTodo.getDescription());
+            assertEquals(createdTodo.isCompleted(), responseTodo.isCompleted());
+        }
+    @Test
+    public void testCreateTodo_InvalidTitle() throws Exception {
+        TodoCreateRequest request = new TodoCreateRequest("", "Description");
+        Todo createdTodo = new Todo("1", "", "Description", false);
+
+
+        when(todoService.create(any(TodoCreateRequest.class))).thenReturn(createdTodo);
+        String inputJson = objectMapper.writeValueAsString(request);
+
+        mockMvc.perform(post("/todo/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
+                .andExpect(status().isBadRequest());
+        // this function should return bad request because the title is invalid but returns 200 ok
     }
 
     @Test
-    public void testCreateTodo() {
-        TodoCreateRequest todoCreateRequest = new TodoCreateRequest("Title", "Description");
-        Todo createdTodo = new Todo("1", "Title", "Description", false);
+    public void testCreateTodo_InvalidDescription() throws Exception {
+        TodoCreateRequest request = new TodoCreateRequest("Title", "");
+        Todo createdTodo = new Todo("1", "Title", "", false);
 
-        when(todoService.create(todoCreateRequest)).thenReturn(createdTodo);
 
-        ResponseEntity<Todo> responseEntity = todoController.create(todoCreateRequest);
+        when(todoService.create(any(TodoCreateRequest.class))).thenReturn(createdTodo);
+        String inputJson = objectMapper.writeValueAsString(request);
 
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(createdTodo, responseEntity.getBody());
+        mockMvc.perform(post("/todo/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inputJson))
+                .andExpect(status().isBadRequest());
+        // this function should return bad request because the description is invalid but returns 200 ok
+    }
+    @Test
+    public void testCreateTodo_EmptyTitle() throws Exception {
+        TodoCreateRequest request = new TodoCreateRequest("", "Description");
+
+        mockMvc.perform(post("/todo/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        // this function should return bad request because the title is empty but returns 200 ok
     }
 
     @Test
-    public void testCreateTodo_emptyConstructor() {
+    public void testCreateTodo_EmptyDescription() throws Exception {
+        TodoCreateRequest request = new TodoCreateRequest("Title", "");
 
-        TodoCreateRequest todoCreateRequest = new TodoCreateRequest("", "");
-
-        ResponseEntity<Todo> responseEntity = todoController.create(todoCreateRequest);
-
-        assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-/*
-this test shows us that the controller is letting todo to be null and that is not desirable .
- */
-
+        mockMvc.perform(post("/todo/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        // this function should return bad request because the description is empty but returns 200 ok
     }
+
     @Test
-    public void testCreateTodo_MaxConstructor() {
-        String maxTitle = "A".repeat(200000000);
-        String maxDescription = "B".repeat(200000000);
-        TodoCreateRequest todoCreateRequest = new TodoCreateRequest(maxTitle, maxDescription);
+    public void testCreateTodo_NullRequest() throws Exception {
+        when(todoService.create(null)).thenThrow(IllegalArgumentException.class);
 
-        ResponseEntity<Todo> responseEntity = todoController.create(todoCreateRequest);
-
-        todoCreateRequest = new TodoCreateRequest(maxTitle, maxDescription);
-
-        responseEntity = todoController.create(todoCreateRequest);
-
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        mockMvc.perform(post("/todo/create")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
     }
 
 
@@ -75,151 +128,138 @@ this test shows us that the controller is letting todo to be null and that is no
 
 
 
+
     @Test
-    public void testReadTodo() {
+    public void testReadTodo() throws Exception {
         String id = "1";
         Todo todo = new Todo("1", "Title", "Description", false);
 
         when(todoService.read(id)).thenReturn(todo);
 
-        ResponseEntity<Todo> responseEntity = todoController.read(id);
+        MvcResult mvcResult = mockMvc.perform(get("/todo/read", id)
+                        .param("id", id))
 
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(todo, responseEntity.getBody());
+                .andExpect(status().isOk())
+                .andReturn();
 
-
-
-    }
-    @Test
-    public void testReadTodo_EmptyId() {
-
-        String emptyId = "";
-
-        ResponseEntity<Todo> responseEntity = todoController.read(emptyId);
-
-        assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-        //this test shows us that the controller is letting todo to be null and that is not desirable .
-    }
-
-    @Test
-    public void testReadTodo_MaxLengthId() {
-
-        String maxId = "A".repeat(2000000000);
-
-
-        Todo todo = new Todo(maxId, "Title", "Description", false);
-        when(todoService.read(maxId)).thenReturn(todo);
-
-        ResponseEntity<Todo> responseEntity = todoController.read(maxId);
-
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(todo, responseEntity.getBody());
+        String responseJson = mvcResult.getResponse().getContentAsString();
+        Todo responseTodo = objectMapper.readValue(responseJson, Todo.class);
+        assertEquals(todo.getId(), responseTodo.getId());
+        assertEquals(todo.getTitle(), responseTodo.getTitle());
+        assertEquals(todo.getDescription(), responseTodo.getDescription());
+        assertEquals(todo.isCompleted(), responseTodo.isCompleted());
     }
 
 
 
 
-
-
-
-
-
     @Test
-    public void testUpdateTodo() {
+    public void testUpdateTodo() throws Exception {
         String id = "1";
         boolean completed = true;
         Todo updatedTodo = new Todo("1", "Title", "Description", true);
 
         when(todoService.update(id, completed)).thenReturn(updatedTodo);
 
-        ResponseEntity<Todo> responseEntity = todoController.update(id, completed);
+        MvcResult mvcResult = mockMvc.perform(put("/todo/update", id)
+                        .param("id", id)
+                        .param("completed", String.valueOf(completed)))
+                .andExpect(status().isOk())
+                .andReturn();
 
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(updatedTodo, responseEntity.getBody());
-    }
-    @Test
-    public void testUpdateTodo_NullValues() {
-
-        String emptyId = "";
-        boolean completed = true;
-
-        ResponseEntity<Todo> responseEntity = todoController.update(emptyId, completed);
-
-        assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-       // this test shows us that the controller is letting todo to be null and that is not desirable .
+        String responseJson = mvcResult.getResponse().getContentAsString();
+        Todo responseTodo = objectMapper.readValue(responseJson, Todo.class);
+        assertEquals(updatedTodo.getId(), responseTodo.getId());
+        assertEquals(updatedTodo.getTitle(), responseTodo.getTitle());
+        assertEquals(updatedTodo.getDescription(), responseTodo.getDescription());
+        assertEquals(updatedTodo.isCompleted(), responseTodo.isCompleted());
     }
 
     @Test
-    public void testUpdateTodo_MaxLength() {
+    public void testUpdateTodo_InvalidCompleted() throws Exception {
+        String id = "1";
+        String completed = "invalid_completed";
 
-        String maxId = "A".repeat(255);
-        boolean completed = true;
-
-
-        Todo updatedTodo = new Todo(maxId, "Title", "Description", completed);
-        when(todoService.update(maxId, completed)).thenReturn(updatedTodo);
-
-        ResponseEntity<Todo> responseEntity = todoController.update(maxId, completed);
-
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(updatedTodo, responseEntity.getBody());
+        mockMvc.perform(put("/todo/update")
+                        .param("id", id)
+                        .param("completed", completed))
+                .andExpect(status().isBadRequest());
     }
-
-
-
-
-
-
-
     @Test
-    public void testDeleteTodo() {
+    public void testUpdateTodo_NullCompleted() throws Exception {
         String id = "1";
 
-        ResponseEntity<?> responseEntity = todoController.delete(id);
+        mockMvc.perform(put("/todo/update")
+                        .param("id", id))
+                .andExpect(status().isBadRequest());
+    }
+    @Test
+    public void testUpdateTodo_NullId() throws Exception {
+        String id = null;
+        boolean completed = true;
 
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        verify(todoService, times(1)).delete(id);
+        mockMvc.perform(put("/todo/update")
+                        .param("completed", String.valueOf(completed)))
+                .andExpect(status().isBadRequest());
+
+    }
+
+    @Test
+    public void testUpdateTodo_InvalidId() throws Exception {
+        String id = "invalid_id";
+        boolean completed = true;
+
+        mockMvc.perform(put("/todo/update")
+                        .param("id", id)
+                        .param("completed", String.valueOf(completed)))
+                .andExpect(status().isBadRequest());
+        // this function should return bad request because the id is invalid but returns 200 ok
     }
 
 
+
+
     @Test
-    public void testDeleteTodo_NullId() {
-        // Test with null ID
-        String nullId = null;
+    public void testDeleteTodo() throws Exception {
+        String id = "1";
 
-        ResponseEntity<?> responseEntity = todoController.delete(nullId);
+        MvcResult mvcResult = mockMvc.perform(delete("/todo/delete")
+                        .param("id", id))
+                .andExpect(status().isOk())
+                .andReturn();
 
-        assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
-
-        // this test shows us that the controller is letting todo to be null and that is not desirable
+        String responseContent = mvcResult.getResponse().getContentAsString();
+        assertTrue(responseContent.isEmpty());
+    }
+    @Test
+    public void testDeleteTodo_NullId() throws Exception {
+        mockMvc.perform(delete("/todo/delete"))
+                .andExpect(status().isBadRequest());
     }
 
 
 
+
+
+
+
     @Test
-    public void testListTodos() {
+    public void testListTodos() throws Exception {
         List<Todo> todos = new ArrayList<>();
         todos.add(new Todo("1", "Title 1", "Description 1", false));
         todos.add(new Todo("2", "Title 2", "Description 2", false));
 
         when(todoService.list()).thenReturn(todos);
 
-        ResponseEntity<List<Todo>> responseEntity = todoController.list();
+        MvcResult mvcResult = mockMvc.perform(get("/todo/list"))
+                .andExpect(status().isOk())
+                .andReturn();
 
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(todos, responseEntity.getBody());
-    }
-    @Test
-    public void testListTodos_EmptyList() {
-        List<Todo> emptyList = new ArrayList<>();
-
-        // Simulate service layer returning an empty list
-        when(todoService.list()).thenReturn(emptyList);
-
-        ResponseEntity<List<Todo>> responseEntity = todoController.list();
-
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertTrue(responseEntity.getBody().isEmpty());
+        String responseJson = mvcResult.getResponse().getContentAsString();
+        List<Todo> responseTodos = objectMapper.readValue(responseJson, objectMapper.getTypeFactory().constructCollectionType(List.class, Todo.class));
+        assertEquals(todos.size(), responseTodos.size());
+        assertEquals(todos.get(0).getId(), responseTodos.get(0).getId());
+        assertEquals(todos.get(1).getId(), responseTodos.get(1).getId());
     }
 
 
@@ -227,17 +267,46 @@ this test shows us that the controller is letting todo to be null and that is no
 
 
 
+
+
+
+
     @Test
-    public void testListCompletedTodos() {
+    public void testListCompletedTodos() throws Exception {
         List<Todo> completedTodos = new ArrayList<>();
         completedTodos.add(new Todo("1", "Title 1", "Description 1", true));
         completedTodos.add(new Todo("2", "Title 2", "Description 2", true));
 
         when(todoService.listCompleted()).thenReturn(completedTodos);
 
-        ResponseEntity<List<Todo>> responseEntity = todoController.listCompleted();
+        MvcResult mvcResult = mockMvc.perform(get("/todo/listCompleted"))
+                .andExpect(status().isOk())
+                .andReturn();
 
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(completedTodos, responseEntity.getBody());
+        String responseJson = mvcResult.getResponse().getContentAsString();
+        List<Todo> responseTodos = objectMapper.readValue(responseJson, objectMapper.getTypeFactory().constructCollectionType(List.class, Todo.class));
+        assertEquals(completedTodos.size(), responseTodos.size());
+        assertEquals(completedTodos.get(0).getId(), responseTodos.get(0).getId());
+        assertEquals(completedTodos.get(1).getId(), responseTodos.get(1).getId());
     }
+    @Test
+    public void testListCompletedTodos_EmptyList() throws Exception {
+        when(todoService.listCompleted()).thenReturn(new ArrayList<>());
+
+        mockMvc.perform(get("/todo/listCompleted"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+
+
+
+
+
+
+
+
+
+
 }
+

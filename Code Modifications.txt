@@ -1,0 +1,5 @@
+I changed in the controller class the 
+@RestController ("/todo")
+to 
+@RestController
+@RequestMapping("/todo")
